@@ -1,0 +1,24 @@
+[package]
+name = "brasa-terminal"
+version = "0.1.0"
+edition = "2021"
+description = "Terminal de escritorio y editor compacto con extensiones LSP"
+
+[[bin]]
+name = "brasa"
+path = "src/main.rs"
+
+[dependencies]
+gtk = "0.18.2"
+sourceview4 = "0.5"
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+libc = "0.2"
+
+[profile.release]
+lto = "thin"
+strip = true
+codegen-units = 4
+
+[build-dependencies]
+pkg-config = "0.3"

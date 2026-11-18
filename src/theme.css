@@ -1,0 +1,118 @@
+.brasa {
+    background: #1a1e24;
+    color: #e3e8ee;
+    font-family: "DejaVu Sans", sans-serif;
+    font-size: 12px;
+}
+.brasa-header {
+    min-height: 39px;
+    padding: 4px 9px;
+    background: #21262d;
+    color: #e3e8ee;
+    border: 0;
+    border-bottom: 1px solid #363d47;
+    box-shadow: none;
+}
+.brand-mark {
+    color: #302118;
+    background: #edac78;
+    border-radius: 7px;
+    min-width: 30px;
+    min-height: 28px;
+    font: bold 13px "DejaVu Sans Mono";
+}
+.brand-name {
+    color: #f1ebe5;
+    font-size: 14px;
+    font-weight: bold;
+}
+.mode-switch {
+    padding: 2px;
+    background: #171b20;
+    border: 1px solid #363d47;
+    border-radius: 8px;
+}
+.brasa button {
+    min-height: 21px;
+    padding: 3px 10px;
+    background: #252b33;
+    color: #e3e8ee;
+    border: 1px solid #3d4652;
+    border-radius: 6px;
+    box-shadow: none;
+    text-shadow: none;
+}
+.brasa button:hover { background: #323b46; }
+.brasa button:active { background: #3a4552; }
+.brasa button:focus { border-color: #d19a72; }
+.brasa button:disabled { color: #a6afba; }
+.brasa .mode-switch button {
+    background: transparent;
+    border-color: transparent;
+    color: #b2bdc9;
+    min-width: 69px;
+}
+.brasa .mode-switch button:hover { background: #272e37; color: #e3e8ee; }
+.brasa .mode-switch button.selected {
+    background: #333a43;
+    color: #ffcfaa;
+    border-color: #444c58;
+}
+.brasa button.accent {
+    background: #e6a774;
+    color: #2a201a;
+    border-color: #e6a774;
+    font-weight: bold;
+}
+.brasa button.accent:hover { background: #fac395; }
+.stage { padding: 0 13px; }
+.pane-toolbar { padding: 8px 1px; color: #bdc7d3; }
+.live-dot { color: #94caa2; font-size: 11px; }
+.filename { font-weight: bold; color: #ecded0; }
+.workspace-frame {
+    border: 1px solid #38404b;
+    border-radius: 7px;
+    background: #14181d;
+}
+.workspace-frame > border { border: none; }
+.source-editor, .source-editor text { font: 11pt "DejaVu Sans Mono"; }
+.pane-footer {
+    padding: 5px 2px 6px;
+    color: #a8b4c2;
+    min-height: 16px;
+    font-size: 11px;
+}
+.brasa .diagnostics {
+    min-height: 15px;
+    padding: 1px 6px;
+    color: #ffbf9a;
+}
+.suggestions, .suggestions list {
+    background: #242a32;
+    color: #e6ebf1;
+    border-radius: 6px;
+}
+.suggestions row:selected {
+    color: #ffe4cb;
+    background: #3d4653;
+}
+.choice { padding: 5px 9px; }
+.choice-detail, .extension-description { color: #b6c1cf; font-size: 11px; }
+.extension-panel { padding: 12px; }
+.extension-card {
+    padding: 12px;
+    background: #232a32;
+    border: 1px solid #3a4552;
+    border-radius: 7px;
+}
+.extension-name { font-weight: bold; }
+.brasa entry {
+    background: #171c22;
+    color: #e3e8ee;
+    caret-color: #edac78;
+    border-color: #444f5e;
+    border-radius: 5px;
+    box-shadow: none;
+}
+.brasa entry:focus { border-color: #d19a72; }
+.brasa entry placeholder { color: #a8b4c2; }

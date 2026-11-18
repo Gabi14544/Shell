@@ -1,0 +1,9 @@
+[Desktop Entry]
+Type=Application
+Name=Brasa Terminal
+Comment=Terminal y editor de código con extensiones LSP
+Exec=brasa %f
+Icon=ar.brasa.Terminal
+Terminal=false
+Categories=System;TerminalEmulator;
+StartupNotify=true
