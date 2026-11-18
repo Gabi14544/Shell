@@ -1,6 +1,6 @@
 [package]
 name = "brasa-terminal"
-version = "0.1.0"
+version = "0.2.0"
 edition = "2021"
 description = "Terminal de escritorio y editor compacto con extensiones LSP"
 

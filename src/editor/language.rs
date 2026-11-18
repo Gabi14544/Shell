@@ -218,7 +218,10 @@ impl Editor {
             return;
         };
         self.pending.set(None);
-        if request.revision != self.revision.get() || request.position != self.cursor_position() {
+        if !self.view.has_focus()
+            || request.revision != self.revision.get()
+            || request.position != self.cursor_position()
+        {
             return;
         }
         if let Some(error) = value["error"]["message"].as_str() {
@@ -377,6 +380,9 @@ impl Editor {
     pub(super) fn request(self: &Rc<Self>, kind: RequestKind) {
         self.hide_choices();
         let explicit = !matches!(kind, RequestKind::Completion { explicit: false });
+        if explicit {
+            self.view.grab_focus();
+        }
         let guard = self.server.borrow();
         let Some(server) = guard.as_ref() else {
             if explicit && self.document.borrow().path.is_none() {
@@ -594,7 +600,6 @@ impl Editor {
         }
         *self.choices.borrow_mut() = choices;
         self.choice_request.set(Some(request));
-        self.view.grab_focus();
         self.list.show_all();
         self.list.select_row(self.list.row_at_index(0).as_ref());
         self.popover.popup();

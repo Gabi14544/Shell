@@ -22,14 +22,14 @@ Section: utils
 Priority: optional
 Architecture: amd64
 Maintainer: Brasa Terminal <brasa@localhost>
-Depends: libc6 (>= 2.39), libgtk-3-0t64, libvte-2.91-0 (>= 0.70), libgtksourceview-4-0, fonts-dejavu-core
+Depends: libc6 (>= 2.39), libgtk-3-0t64, libvte-2.91-0 (>= 0.70), libgtksourceview-4-0, fonts-hack, fonts-dejavu-core
 Recommends: python3-venv
 Description: Terminal de escritorio compacta con editor y extensiones de lenguaje
  Brasa utiliza GTK, VTE y GtkSourceView. Inicia servidores de lenguaje
  al abrir un archivo compatible en el editor.
 CONTROL
 
-install -Dm755 target/release/brasa "$stage/usr/bin/brasa"
+install -Dm755 "${CARGO_TARGET_DIR:-target}/release/brasa" "$stage/usr/bin/brasa"
 install -Dm644 packaging/ar.brasa.Terminal.desktop "$stage/usr/share/applications/ar.brasa.Terminal.desktop"
 install -Dm644 packaging/ar.brasa.Terminal.png "$stage/usr/share/icons/hicolor/128x128/apps/ar.brasa.Terminal.png"
 install -Dm644 assets/styles/brasa.xml "$stage/usr/share/brasa/styles/brasa.xml"

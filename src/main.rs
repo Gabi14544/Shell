@@ -1,20 +1,15 @@
 mod editor;
+mod explorer;
 mod extensions;
 mod lsp;
 mod terminal;
 
-use crate::{editor::Editor, extensions::Extension, terminal::Terminal};
+use crate::{editor::Editor, explorer::Explorer, extensions::Extension, terminal::Terminal};
 use gtk::{gdk, gio, glib, prelude::*};
 use std::{
     cell::{Cell, RefCell},
     rc::Rc,
 };
-
-#[derive(Clone, Copy, Eq, PartialEq)]
-enum Page {
-    Terminal,
-    Editor,
-}
 
 struct ExtensionPanel {
     dialog: gtk::Dialog,
@@ -23,12 +18,11 @@ struct ExtensionPanel {
 
 struct App {
     window: gtk::ApplicationWindow,
-    stack: gtk::Stack,
     terminal: Terminal,
+    explorer: Rc<Explorer>,
+    editor_area: gtk::Stack,
+    editor_toggle: gtk::ToggleButton,
     editor: RefCell<Option<Rc<Editor>>>,
-    terminal_button: gtk::Button,
-    editor_button: gtk::Button,
-    page: Cell<Page>,
     extensions: Rc<RefCell<Vec<Extension>>>,
     extension_load_error: Option<String>,
     extension_window: RefCell<Option<ExtensionPanel>>,
@@ -63,8 +57,7 @@ fn main() -> glib::ExitCode {
         let app = App::get(application, &state);
         app.window.present();
         if let Some(path) = files.first().and_then(|file| file.path()) {
-            app.switch(Page::Editor);
-            app.editor().open(&path);
+            app.show_editor().open(&path);
         }
     }));
     application.connect_shutdown(move |_| {
@@ -90,14 +83,14 @@ impl App {
     fn new(application: &gtk::Application) -> Rc<Self> {
         let window = gtk::ApplicationWindow::new(application);
         window.set_icon_name(Some("ar.brasa.Terminal"));
-        window.set_default_size(1060, 620);
-        window.set_size_request(635, 350);
+        window.set_default_size(1180, 635);
+        window.set_size_request(720, 370);
         window.style_context().add_class("brasa");
 
         let header = gtk::HeaderBar::new();
         header.style_context().add_class("brasa-header");
         header.set_show_close_button(true);
-        let brand = gtk::Box::new(gtk::Orientation::Horizontal, 8);
+        let brand = gtk::Box::new(gtk::Orientation::Horizontal, 7);
         let glyph = gtk::Label::new(Some(">_"));
         glyph.set_valign(gtk::Align::Center);
         glyph.style_context().add_class("brand-mark");
@@ -106,17 +99,18 @@ impl App {
         brand.pack_start(&glyph, false, false, 0);
         brand.pack_start(&name, false, false, 0);
         header.pack_start(&brand);
-        let terminal_button = gtk::Button::with_label("Terminal");
-        terminal_button.set_tooltip_text(Some("Terminal · Ctrl+Mayús+T"));
-        terminal_button.style_context().add_class("selected");
-        let editor_button = gtk::Button::with_label("Editor");
-        editor_button.set_tooltip_text(Some("Editor · Ctrl+Mayús+E"));
-        let tabs = gtk::Box::new(gtk::Orientation::Horizontal, 3);
-        tabs.set_valign(gtk::Align::Center);
-        tabs.style_context().add_class("mode-switch");
-        tabs.add(&terminal_button);
-        tabs.add(&editor_button);
-        header.set_custom_title(Some(&tabs));
+
+        let files_toggle = panel_toggle("Archivos", "folder-symbolic", "Ctrl+Mayús+B");
+        let editor_toggle = panel_toggle(
+            "Editor",
+            "accessories-text-editor-symbolic",
+            "Ctrl+Mayús+E para enfocar",
+        );
+        let layout = gtk::Box::new(gtk::Orientation::Horizontal, 4);
+        layout.add(&files_toggle);
+        layout.add(&editor_toggle);
+        header.set_custom_title(Some(&layout));
+
         let extension_button = gtk::Button::with_label("Extensiones");
         extension_button.set_image(Some(&gtk::Image::from_icon_name(
             Some("application-x-addon-symbolic"),
@@ -127,39 +121,82 @@ impl App {
         window.set_titlebar(Some(&header));
         window.set_title("Brasa Terminal");
 
-        let stage = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        stage.style_context().add_class("stage");
-        let stack = gtk::Stack::new();
-        stack.set_transition_type(gtk::StackTransitionType::None);
-        stack.set_homogeneous(false);
+        let explorer = Explorer::new(&window);
         let terminal = Terminal::new();
-        stack.add_named(&terminal.page, "terminal");
-        stage.pack_start(&stack, true, true, 0);
-        window.add(&stage);
+        let editor_area = gtk::Stack::new();
+        editor_area.set_homogeneous(false);
+        editor_area.set_width_request(275);
+        let (welcome, open, new) = editor_placeholder();
+        editor_area.add_named(&welcome, "welcome");
+
+        let split = gtk::Paned::new(gtk::Orientation::Horizontal);
+        split.style_context().add_class("workspace-separator");
+        split.set_wide_handle(true);
+        split.pack1(&terminal.page, true, false);
+        split.pack2(&editor_area, true, false);
+        split.set_position(440);
+
+        let workspace = gtk::Paned::new(gtk::Orientation::Horizontal);
+        workspace.style_context().add_class("workspace-separator");
+        workspace.set_wide_handle(true);
+        workspace.pack1(&explorer.page, false, false);
+        workspace.pack2(&split, true, false);
+        workspace.set_position(200);
+        window.add(&workspace);
         let (extensions, extension_load_error) = match extensions::load() {
             Ok(extensions) => (extensions, None),
             Err(err) => (Vec::new(), Some(err)),
         };
         let app = Rc::new(Self {
             window,
-            stack,
             terminal,
+            explorer,
+            editor_area,
+            editor_toggle,
             editor: RefCell::default(),
-            terminal_button,
-            editor_button,
-            page: Cell::new(Page::Terminal),
             extensions: Rc::new(RefCell::new(extensions)),
             extension_load_error,
             extension_window: RefCell::default(),
             installing_python: Cell::default(),
         });
-        app.terminal_button
-            .connect_clicked(glib::clone!(@weak app => move |_| app.switch(Page::Terminal)));
-        app.editor_button
-            .connect_clicked(glib::clone!(@weak app => move |_| app.switch(Page::Editor)));
+
+        app.explorer
+            .connect_open(glib::clone!(@weak app => move |path| {
+                app.show_editor().open_from_explorer(path);
+            }));
+        open.connect_clicked(glib::clone!(@weak app => move |_| app.show_editor().choose_open()));
+        new.connect_clicked(glib::clone!(@weak app => move |_| app.show_editor().new_file()));
+        files_toggle.connect_toggled(glib::clone!(@weak app => move |button| {
+            app.explorer.page.set_visible(button.is_active());
+        }));
+        app.editor_toggle
+            .connect_toggled(glib::clone!(@weak app => move |button| {
+                let visible = button.is_active();
+                if let Some(editor) = app.editor.borrow().as_ref() {
+                    editor.activate(visible);
+                }
+                app.editor_area.set_visible(visible);
+                if !visible {
+                    app.terminal.widget.grab_focus();
+                }
+            }));
         extension_button.connect_clicked(glib::clone!(@weak app => move |_| app.show_extensions()));
-        app.window.connect_key_press_event(glib::clone!(@weak app =>
-            @default-return glib::Propagation::Proceed, move |_, event| app.key(event)));
+        app.window.connect_key_press_event(glib::clone!(@weak app, @weak files_toggle =>
+            @default-return glib::Propagation::Proceed, move |_, event| app.key(event, &files_toggle)));
+        app.window
+            .connect_set_focus(glib::clone!(@weak app => move |_, focused| {
+                let terminal = focused.is_some_and(|widget| widget.is_ancestor(&app.terminal.page));
+                let editor = focused.is_some_and(|widget| widget.is_ancestor(&app.editor_area));
+                let files = focused.is_some_and(|widget| widget.is_ancestor(&app.explorer.page));
+                pane_focus(&app.terminal.page, terminal);
+                pane_focus(&app.editor_area, editor);
+                pane_focus(&app.explorer.page, files);
+                if terminal || files {
+                    if let Some(editor) = app.editor.borrow().as_ref() {
+                        editor.dismiss_suggestions();
+                    }
+                }
+            }));
         app.window.connect_delete_event(glib::clone!(@weak app =>
         @default-return glib::Propagation::Proceed, move |_, _| {
             if let Some(editor) = app.editor.borrow().as_ref() {
@@ -175,45 +212,26 @@ impl App {
         app
     }
 
-    fn editor(&self) -> Rc<Editor> {
-        if let Some(editor) = self.editor.borrow().as_ref() {
-            return editor.clone();
-        }
-        let editor = Editor::new(&self.window, self.extensions.clone());
-        self.stack.add_named(&editor.page, "editor");
-        editor.page.show_all();
-        self.editor.replace(Some(editor.clone()));
+    fn show_editor(&self) -> Rc<Editor> {
+        self.editor_toggle.set_active(true);
+        let existing = self.editor.borrow().clone();
+        let editor = if let Some(editor) = existing {
+            editor
+        } else {
+            let explorer = Rc::downgrade(&self.explorer);
+            let editor = Editor::new(&self.window, self.extensions.clone(), explorer);
+            self.editor_area.add_named(&editor.page, "editor");
+            editor.page.show_all();
+            self.editor_area.set_visible_child_name("editor");
+            editor.activate(true);
+            self.editor.replace(Some(editor.clone()));
+            editor
+        };
+        editor.view.grab_focus();
         editor
     }
 
-    fn switch(&self, page: Page) {
-        let previous = self.page.replace(page);
-        if previous != page {
-            let (selected, other) = match page {
-                Page::Terminal => (&self.terminal_button, &self.editor_button),
-                Page::Editor => (&self.editor_button, &self.terminal_button),
-            };
-            selected.style_context().add_class("selected");
-            other.style_context().remove_class("selected");
-        }
-        match page {
-            Page::Terminal => {
-                if let Some(editor) = self.editor.borrow().as_ref() {
-                    editor.activate(false);
-                }
-                self.stack.set_visible_child_name("terminal");
-                self.terminal.widget.grab_focus();
-            }
-            Page::Editor => {
-                let editor = self.editor();
-                self.stack.set_visible_child_name("editor");
-                editor.activate(true);
-                editor.view.grab_focus();
-            }
-        }
-    }
-
-    fn key(&self, event: &gdk::EventKey) -> glib::Propagation {
+    fn key(&self, event: &gdk::EventKey, files_toggle: &gtk::ToggleButton) -> glib::Propagation {
         use gdk::{keys::constants as key, ModifierType};
         let state = event.state();
         if !state.contains(ModifierType::CONTROL_MASK) || state.contains(ModifierType::MOD1_MASK) {
@@ -222,17 +240,25 @@ impl App {
         let key = event.keyval().to_lower();
         if state.contains(ModifierType::SHIFT_MASK) {
             match key {
-                key::e => self.switch(Page::Editor),
-                key::t => self.switch(Page::Terminal),
+                key::e => {
+                    self.show_editor();
+                }
+                key::t => {
+                    self.terminal.widget.grab_focus();
+                }
+                key::b => files_toggle.set_active(!files_toggle.is_active()),
                 _ => return glib::Propagation::Proceed,
             }
-        } else if self.page.get() == Page::Editor {
-            let editor = self.editor();
+        } else if self
+            .window
+            .focused_widget()
+            .is_some_and(|widget| widget.is_ancestor(&self.editor_area))
+        {
             match key {
-                key::n => editor.new_file(),
-                key::o => editor.choose_open(),
+                key::n => self.show_editor().new_file(),
+                key::o => self.show_editor().choose_open(),
                 key::s => {
-                    editor.save();
+                    self.show_editor().save();
                 }
                 _ => return glib::Propagation::Proceed,
             }
@@ -499,6 +525,73 @@ impl App {
         };
         message(Some(parent), gtk::MessageType::Info, title, text);
     }
+}
+
+fn panel_toggle(label: &str, icon: &str, hint: &str) -> gtk::ToggleButton {
+    let toggle = gtk::ToggleButton::with_label(label);
+    toggle.set_image(Some(&gtk::Image::from_icon_name(
+        Some(icon),
+        gtk::IconSize::Button,
+    )));
+    toggle.set_always_show_image(true);
+    toggle.set_active(true);
+    toggle.style_context().add_class("panel-toggle");
+    toggle.set_tooltip_text(Some(&format!("Mostrar u ocultar {label} · {hint}")));
+    toggle
+}
+
+fn editor_placeholder() -> (gtk::Box, gtk::Button, gtk::Button) {
+    let page = gtk::Box::new(gtk::Orientation::Vertical, 0);
+    page.style_context().add_class("editor-pane");
+    let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 0);
+    toolbar.style_context().add_class("pane-toolbar");
+    let title = gtk::Label::new(Some("Editor"));
+    title.style_context().add_class("pane-title");
+    toolbar.pack_start(&title, false, false, 0);
+    page.pack_start(&toolbar, false, false, 0);
+
+    let empty = gtk::Box::new(gtk::Orientation::Vertical, 10);
+    empty.set_halign(gtk::Align::Center);
+    empty.set_valign(gtk::Align::Center);
+    empty.style_context().add_class("editor-empty");
+    let icon = gtk::Image::from_icon_name(
+        Some("accessories-text-editor-symbolic"),
+        gtk::IconSize::Dialog,
+    );
+    icon.set_pixel_size(28);
+    empty.add(&icon);
+    let label = gtk::Label::new(Some("Abrí un archivo para editar"));
+    label.style_context().add_class("empty-title");
+    empty.add(&label);
+    let buttons = gtk::Box::new(gtk::Orientation::Horizontal, 6);
+    buttons.set_halign(gtk::Align::Center);
+    let open = gtk::Button::with_label("Abrir archivo…");
+    open.style_context().add_class("accent");
+    let new = gtk::Button::with_label("Nuevo");
+    buttons.add(&open);
+    buttons.add(&new);
+    empty.add(&buttons);
+    page.pack_start(&empty, true, true, 0);
+    (page, open, new)
+}
+
+fn pane_focus(widget: &impl IsA<gtk::Widget>, focused: bool) {
+    let style = widget.style_context();
+    if focused {
+        style.add_class("focused-pane");
+    } else {
+        style.remove_class("focused-pane");
+    }
+}
+
+fn icon_button(icon: &str, label: &str) -> gtk::Button {
+    let button = gtk::Button::from_icon_name(Some(icon), gtk::IconSize::Menu);
+    button.style_context().add_class("icon-button");
+    button.set_tooltip_text(Some(label));
+    if let Some(accessible) = button.accessible() {
+        gtk::atk::prelude::AtkObjectExt::set_name(&accessible, label);
+    }
+    button
 }
 
 fn message(

@@ -1,113 +1,150 @@
 .brasa {
-    background: #1a1e24;
-    color: #e3e8ee;
+    background-color: #1e2227;
+    color: #e3e7ec;
     font-family: "DejaVu Sans", sans-serif;
     font-size: 12px;
 }
 .brasa-header {
-    min-height: 39px;
-    padding: 4px 9px;
-    background: #21262d;
-    color: #e3e8ee;
+    min-height: 32px;
+    padding: 4px 10px;
+    background: #181b20;
+    color: #e3e7ec;
     border: 0;
-    border-bottom: 1px solid #363d47;
+    border-bottom: 1px solid #3a3f48;
     box-shadow: none;
 }
 .brand-mark {
-    color: #302118;
-    background: #edac78;
-    border-radius: 7px;
-    min-width: 30px;
-    min-height: 28px;
-    font: bold 13px "DejaVu Sans Mono";
+    color: #2f2118;
+    background: #efb17b;
+    border-radius: 6px;
+    min-width: 27px;
+    min-height: 24px;
+    font-family: Hack, "DejaVu Sans Mono", monospace;
+    font-weight: bold;
+    font-size: 12px;
 }
 .brand-name {
-    color: #f1ebe5;
+    color: #f1ebe4;
     font-size: 14px;
     font-weight: bold;
 }
-.mode-switch {
-    padding: 2px;
-    background: #171b20;
-    border: 1px solid #363d47;
-    border-radius: 8px;
-}
 .brasa button {
-    min-height: 21px;
-    padding: 3px 10px;
-    background: #252b33;
-    color: #e3e8ee;
-    border: 1px solid #3d4652;
-    border-radius: 6px;
+    min-height: 20px;
+    padding: 3px 9px;
+    background: #252a32;
+    color: #dce2ea;
+    border: 1px solid #3b424d;
+    border-radius: 5px;
     box-shadow: none;
     text-shadow: none;
 }
-.brasa button:hover { background: #323b46; }
-.brasa button:active { background: #3a4552; }
+.brasa button:hover { background: #313844; }
+.brasa button:active { background: #3a424f; }
 .brasa button:focus { border-color: #d19a72; }
 .brasa button:disabled { color: #a6afba; }
-.brasa .mode-switch button {
+.brasa button.panel-toggle {
     background: transparent;
     border-color: transparent;
-    color: #b2bdc9;
-    min-width: 69px;
+    color: #98a3b0;
 }
-.brasa .mode-switch button:hover { background: #272e37; color: #e3e8ee; }
-.brasa .mode-switch button.selected {
-    background: #333a43;
-    color: #ffcfaa;
-    border-color: #444c58;
+.brasa button.panel-toggle:hover { background: #272d36; }
+.brasa button.panel-toggle:checked {
+    background: #292e37;
+    border-color: #3c444f;
+    color: #f4c7a5;
 }
+.brasa button.panel-toggle:focus { border-color: #d19a72; }
 .brasa button.accent {
-    background: #e6a774;
+    background: #e9ab78;
     color: #2a201a;
-    border-color: #e6a774;
+    border-color: #e9ab78;
     font-weight: bold;
 }
 .brasa button.accent:hover { background: #fac395; }
-.stage { padding: 0 13px; }
-.pane-toolbar { padding: 8px 1px; color: #bdc7d3; }
-.live-dot { color: #94caa2; font-size: 11px; }
-.filename { font-weight: bold; color: #ecded0; }
-.workspace-frame {
-    border: 1px solid #38404b;
-    border-radius: 7px;
-    background: #14181d;
+.brasa button.icon-button {
+    min-width: 19px;
+    min-height: 20px;
+    padding: 1px 4px;
+    background: transparent;
+    border-color: transparent;
+    color: #aeb8c5;
 }
-.workspace-frame > border { border: none; }
-.source-editor, .source-editor text { font: 11pt "DejaVu Sans Mono"; }
+.brasa button.icon-button:hover {
+    background: #323945;
+    color: #ecf0f6;
+}
+.brasa button.icon-button:focus { border-color: #d19a72; }
+.terminal-pane { background: #1b1e22; }
+.editor-pane { background: #1e2227; }
+.file-pane { background: #21252a; }
+paned.workspace-separator > separator {
+    background: #393e47;
+    min-width: 4px;
+    box-shadow: none;
+}
+paned.workspace-separator > separator:hover { background: #a97751; }
+.pane-toolbar {
+    min-height: 34px;
+    padding: 0 9px;
+    background: #252930;
+    color: #bec7d2;
+    border-bottom: 1px solid #3a404b;
+}
+.focused-pane .pane-toolbar {
+    background: #2a3038;
+    border-bottom-color: #b6845e;
+}
+.pane-title { font-weight: bold; color: #dbe1e9; }
+.editor-empty { color: #8795a5; }
+.empty-title { color: #d5dde7; font-size: 13px; font-weight: bold; }
+.project-tree {
+    background: #21252a;
+    color: #c8d0db;
+}
+.project-tree:selected {
+    background: #374452;
+    color: #f5d4b9;
+}
+.source-editor, .source-editor text {
+    font-family: Hack, "DejaVu Sans Mono", monospace;
+    font-size: 10pt;
+}
 .pane-footer {
-    padding: 5px 2px 6px;
-    color: #a8b4c2;
-    min-height: 16px;
+    padding: 3px 9px;
+    background: #23272d;
+    color: #aab5c2;
+    border-top: 1px solid #353a44;
+    min-height: 19px;
     font-size: 11px;
 }
+.live-dot { color: #94caa2; font-size: 9px; }
+.terminal-directory { color: #aabfcf; }
 .brasa .diagnostics {
     min-height: 15px;
     padding: 1px 6px;
     color: #ffbf9a;
 }
 .suggestions, .suggestions list {
-    background: #242a32;
+    background: #282e37;
     color: #e6ebf1;
     border-radius: 6px;
 }
 .suggestions row:selected {
     color: #ffe4cb;
-    background: #3d4653;
+    background: #414b59;
 }
 .choice { padding: 5px 9px; }
 .choice-detail, .extension-description { color: #b6c1cf; font-size: 11px; }
 .extension-panel { padding: 12px; }
 .extension-card {
     padding: 12px;
-    background: #232a32;
+    background: #252b34;
     border: 1px solid #3a4552;
     border-radius: 7px;
 }
 .extension-name { font-weight: bold; }
 .brasa entry {
-    background: #171c22;
+    background: #1b1f25;
     color: #e3e8ee;
     caret-color: #edac78;
     border-color: #444f5e;

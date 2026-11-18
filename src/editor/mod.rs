@@ -1,7 +1,9 @@
 mod language;
 
 use crate::{
+    explorer::Explorer,
     extensions::Extension,
+    icon_button,
     lsp::{Edit, Position, Server},
     message,
 };
@@ -13,7 +15,7 @@ use sourceview4::prelude::{
 use std::{
     cell::{Cell, RefCell},
     path::{Path, PathBuf},
-    rc::Rc,
+    rc::{Rc, Weak},
 };
 
 const MAX_FILE: u64 = 2 * 1024 * 1024;
@@ -51,6 +53,7 @@ pub struct Editor {
     pub page: gtk::Box,
     pub view: sourceview4::View,
     window: glib::WeakRef<gtk::ApplicationWindow>,
+    explorer: Weak<Explorer>,
     buffer: sourceview4::Buffer,
     filename: gtk::Label,
     position: gtk::Label,
@@ -80,6 +83,7 @@ impl Editor {
     pub fn new(
         window: &gtk::ApplicationWindow,
         extensions: Rc<RefCell<Vec<Extension>>>,
+        explorer: Weak<Explorer>,
     ) -> Rc<Self> {
         let buffer = sourceview4::Buffer::new(None::<&gtk::TextTagTable>);
         buffer.set_max_undo_levels(128);
@@ -119,36 +123,28 @@ impl Editor {
         view.set_monospace(true);
 
         let page = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 7);
+        page.style_context().add_class("editor-pane");
+        let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         toolbar.style_context().add_class("pane-toolbar");
-        let new = gtk::Button::with_label("Nuevo");
-        new.set_tooltip_text(Some("Nuevo archivo · Ctrl+N"));
-        toolbar.pack_start(&new, false, false, 0);
-        let open = gtk::Button::with_label("Abrir");
-        open.set_tooltip_text(Some("Abrir archivo · Ctrl+O"));
-        toolbar.pack_start(&open, false, false, 0);
-        let save = gtk::Button::with_label("Guardar");
-        save.set_tooltip_text(Some("Guardar archivo · Ctrl+S"));
-        save.style_context().add_class("accent");
-        toolbar.pack_start(&save, false, false, 0);
         let filename = gtk::Label::new(Some("Sin título"));
+        filename.set_xalign(0.0);
         filename.set_ellipsize(pango::EllipsizeMode::Middle);
-        filename.style_context().add_class("filename");
-        toolbar.pack_start(&filename, true, true, 5);
-        let fixes = gtk::Button::with_label("Correcciones");
-        fixes.set_tooltip_text(Some("Correcciones en el cursor · Ctrl+."));
-        toolbar.pack_end(&fixes, false, false, 0);
-        let suggest = gtk::Button::with_label("Sugerencias");
-        suggest.set_tooltip_text(Some("Completar en el cursor · Ctrl+Espacio"));
-        toolbar.pack_end(&suggest, false, false, 0);
+        filename.style_context().add_class("pane-title");
+        toolbar.pack_start(&filename, true, true, 0);
+        let new = icon_button("document-new-symbolic", "Nuevo archivo · Ctrl+N");
+        let open = icon_button("document-open-symbolic", "Abrir archivo · Ctrl+O");
+        let save = icon_button("document-save-symbolic", "Guardar · Ctrl+S");
+        let suggest = icon_button("insert-text-symbolic", "Sugerencias · Ctrl+Espacio");
+        let fixes = icon_button("tools-check-spelling-symbolic", "Correcciones · Ctrl+.");
+        for button in [&fixes, &suggest, &save, &open, &new] {
+            toolbar.pack_end(button, false, false, 0);
+        }
         page.pack_start(&toolbar, false, false, 0);
 
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
+        scroller.set_policy(gtk::PolicyType::Automatic, gtk::PolicyType::Automatic);
         scroller.add(&view);
-        let frame = gtk::Frame::new(None);
-        frame.style_context().add_class("workspace-frame");
-        frame.add(&scroller);
-        page.pack_start(&frame, true, true, 0);
+        page.pack_start(&scroller, true, true, 0);
 
         let footer = gtk::Box::new(gtk::Orientation::Horizontal, 12);
         footer.style_context().add_class("pane-footer");
@@ -187,6 +183,7 @@ impl Editor {
             view,
             buffer,
             window: window.downgrade(),
+            explorer,
             filename,
             position,
             status,
@@ -259,6 +256,12 @@ impl Editor {
         self.restart_server();
     }
 
+    pub fn dismiss_suggestions(&self) {
+        self.hide_choices();
+        self.pending.set(None);
+        self.waiting.set(None);
+    }
+
     pub fn new_file(self: &Rc<Self>) {
         if self.can_discard() {
             self.set_document(Document::default(), "");
@@ -297,12 +300,23 @@ impl Editor {
         }
     }
 
+    pub fn open_from_explorer(self: &Rc<Self>, path: &Path) {
+        if self.document.borrow().path.as_deref() == Some(path) {
+            self.view.grab_focus();
+        } else {
+            self.open(path);
+        }
+    }
+
     pub fn open(self: &Rc<Self>, path: &Path) {
         if !self.can_discard() {
             return;
         }
         match read_document(path) {
             Ok((document, text)) => {
+                if let (Some(explorer), Some(path)) = (self.explorer.upgrade(), &document.path) {
+                    explorer.follow_file(path);
+                }
                 self.set_document(document, &text);
                 self.view.grab_focus();
             }
@@ -325,14 +339,16 @@ impl Editor {
             Some("Cancelar"),
         );
         dialog.set_local_only(true);
-        if let Some(dir) = self
+        let folder = self
             .document
             .borrow()
             .path
             .as_deref()
             .and_then(Path::parent)
-        {
-            dialog.set_current_folder(dir);
+            .map(Path::to_path_buf)
+            .or_else(|| self.explorer.upgrade().map(|explorer| explorer.root()));
+        if let Some(folder) = folder {
+            dialog.set_current_folder(folder);
         }
         if save {
             dialog.set_do_overwrite_confirmation(true);
@@ -373,12 +389,15 @@ impl Editor {
         match result {
             Ok(etag) => {
                 let mut document = self.document.borrow_mut();
-                document.path = Some(path);
+                document.path = Some(path.clone());
                 document.etag = etag;
                 drop(document);
                 self.buffer.set_modified(false);
                 self.update_filename();
                 if existing.is_none() {
+                    if let Some(explorer) = self.explorer.upgrade() {
+                        explorer.follow_file(&path);
+                    }
                     self.update_syntax();
                     self.restart_server();
                 } else {

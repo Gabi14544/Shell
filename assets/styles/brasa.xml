@@ -1,14 +1,14 @@
 <?xml version="1.0" encoding="UTF-8"?>
 <style-scheme id="brasa" name="Brasa" version="1.0">
-  <color name="canvas" value="#171c22"/>
+  <color name="canvas" value="#1e2227"/>
   <color name="ink" value="#e1e7ef"/>
-  <color name="muted" value="#9aa8b8"/>
-  <color name="line" value="#222a33"/>
-  <color name="rule" value="#323d49"/>
-  <color name="selected" value="#364d68"/>
+  <color name="muted" value="#8995a3"/>
+  <color name="line" value="#282f37"/>
+  <color name="rule" value="#353e49"/>
+  <color name="selected" value="#354a60"/>
   <color name="orange" value="#f0bb8c"/>
-  <color name="green" value="#a7d49e"/>
-  <color name="lavender" value="#d1b9f3"/>
+  <color name="green" value="#a4d3a6"/>
+  <color name="lavender" value="#d3b2ef"/>
   <color name="teal" value="#95d8d4"/>
   <color name="red" value="#ff9388"/>
 

@@ -1,4 +1,5 @@
 //! GTK 3 bindings for the subset of the VTE terminal API used here.
+use crate::icon_button;
 use glib::translate::{from_glib_borrow, from_glib_none, ToGlibPtr};
 use gtk::{gdk, gio, glib, pango, prelude::*};
 use std::{cell::Cell, ffi::CString, os::unix::ffi::OsStrExt, rc::Rc};
@@ -54,9 +55,9 @@ impl Terminal {
         widget.set_hexpand(true);
         widget.set_vexpand(true);
         widget.set_can_focus(true);
-        let font = pango::FontDescription::from_string("DejaVu Sans Mono 11");
+        let font = pango::FontDescription::from_string("Hack, DejaVu Sans Mono 10");
         let foreground = color("#e0e4e9");
-        let background = color("#14181d");
+        let background = color("#1b1e22");
         let palette = [
             "#252c34", "#f18682", "#a5d598", "#f5bf80", "#94b8fb", "#cbb0ec", "#8fd4d7", "#d9dfe7",
             "#8591a0", "#ffa4a0", "#c4eca8", "#ffe2a8", "#b4d0ff", "#e0c9ff", "#b6edf0", "#f7f8f9",
@@ -86,39 +87,56 @@ impl Terminal {
             .into_owned();
 
         let page = gtk::Box::new(gtk::Orientation::Vertical, 0);
-        let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 9);
+        page.style_context().add_class("terminal-pane");
+        page.set_width_request(225);
+        let toolbar = gtk::Box::new(gtk::Orientation::Horizontal, 4);
         toolbar.style_context().add_class("pane-toolbar");
-        let dot = gtk::Label::new(Some("●"));
-        dot.style_context().add_class("live-dot");
-        toolbar.pack_start(&dot, false, false, 0);
-        let status = gtk::Label::new(Some(&format!("Sesión local · {shell_name}")));
-        toolbar.pack_start(&status, false, false, 0);
-        let restart = gtk::Button::with_label("Nueva sesión");
+        let title = gtk::Label::new(Some("Terminal"));
+        title.style_context().add_class("pane-title");
+        toolbar.pack_start(&title, false, false, 0);
+        let restart = icon_button("view-refresh-symbolic", "Nueva sesión");
         restart.set_no_show_all(true);
         toolbar.pack_end(&restart, false, false, 0);
-        let paste = gtk::Button::from_icon_name(Some("edit-paste-symbolic"), gtk::IconSize::Button);
-        paste.set_tooltip_text(Some("Pegar  ·  Ctrl+Mayús+V"));
+        let paste = icon_button("edit-paste-symbolic", "Pegar · Ctrl+Mayús+V");
         toolbar.pack_end(&paste, false, false, 0);
-        let copy = gtk::Button::from_icon_name(Some("edit-copy-symbolic"), gtk::IconSize::Button);
-        copy.set_tooltip_text(Some("Copiar  ·  Ctrl+Mayús+C"));
+        let copy = icon_button("edit-copy-symbolic", "Copiar · Ctrl+Mayús+C");
         toolbar.pack_end(&copy, false, false, 0);
         page.pack_start(&toolbar, false, false, 0);
 
         let scroller = gtk::ScrolledWindow::new(None::<&gtk::Adjustment>, None::<&gtk::Adjustment>);
         scroller.set_policy(gtk::PolicyType::Never, gtk::PolicyType::Automatic);
-        scroller.set_margin_start(11);
-        scroller.set_margin_end(9);
-        scroller.set_margin_top(8);
-        scroller.set_margin_bottom(8);
+        scroller.set_margin_start(12);
+        scroller.set_margin_end(6);
+        scroller.set_margin_top(9);
+        scroller.set_margin_bottom(7);
         scroller.add(&widget);
-        let frame = gtk::Frame::new(None);
-        frame.style_context().add_class("workspace-frame");
-        frame.add(&scroller);
-        page.pack_start(&frame, true, true, 0);
-        let footer = gtk::Label::new(Some("Ctrl+Mayús+C  Copiar   ·   Ctrl+Mayús+V  Pegar"));
-        footer.set_xalign(0.0);
+        page.pack_start(&scroller, true, true, 0);
+
+        let footer = gtk::Box::new(gtk::Orientation::Horizontal, 7);
         footer.style_context().add_class("pane-footer");
-        page.pack_start(&footer, false, false, 0);
+        let dot = gtk::Label::new(Some("●"));
+        dot.style_context().add_class("live-dot");
+        footer.pack_start(&dot, false, false, 0);
+        let status = gtk::Label::new(Some(&format!("Sesión local · {shell_name}")));
+        status.set_ellipsize(pango::EllipsizeMode::End);
+        footer.pack_start(&status, false, false, 0);
+        let directory = gtk::Label::new(None);
+        directory.set_xalign(1.0);
+        directory.set_ellipsize(pango::EllipsizeMode::Middle);
+        directory.style_context().add_class("terminal-directory");
+        footer.pack_end(&directory, true, true, 0);
+        page.pack_end(&footer, false, false, 0);
+        widget.connect_notify_local(
+            Some("current-directory-uri"),
+            glib::clone!(@weak directory => move |terminal, _| {
+                let uri = terminal.property::<Option<String>>("current-directory-uri");
+                let path = uri.as_deref().and_then(|uri| gio::File::for_uri(uri).path());
+                let path = path.as_deref().map(std::path::Path::to_string_lossy);
+                let label = path.as_deref().or(uri.as_deref());
+                directory.set_text(label.unwrap_or_default());
+                directory.set_tooltip_text(label);
+            }),
+        );
 
         copy.connect_clicked(glib::clone!(@weak widget => move |_| unsafe {
             vte_terminal_copy_clipboard_format(ptr(&widget), 1);
@@ -158,35 +176,37 @@ impl Terminal {
                 restart.show();
                 None
         }));
-        let start = glib::clone!(@weak widget, @weak status, @weak dot, @weak restart => move || {
-            if running.replace(true) {
-                return;
-            }
-            status.set_text(&format!("Sesión local · {shell_name}"));
-            status.set_tooltip_text(None);
-            dot.style_context().add_class("live-dot");
-            restart.hide();
-            let shell = CString::new(shell.as_os_str().as_bytes()).expect("válido para el sistema");
-            let mut argv = [shell.as_ptr().cast_mut(), std::ptr::null_mut()];
-            let state = Box::new(SpawnState {
-                status: status.downgrade(),
-                dot: dot.downgrade(),
-                restart: restart.downgrade(),
-                running: running.clone(),
-            });
-            unsafe {
-                vte_terminal_spawn_async(
-                    ptr(&widget), 0, std::ptr::null(), argv.as_mut_ptr(), std::ptr::null_mut(),
-                    glib::ffi::G_SPAWN_DEFAULT, None, std::ptr::null_mut(), None, 5_000,
-                    std::ptr::null_mut(), Some(spawned), Box::into_raw(state).cast(),
-                );
-            }
-        });
-        restart.connect_clicked(glib::clone!(@weak widget => move |_| {
+        let start = Rc::new(
+            glib::clone!(@weak widget, @weak status, @weak dot, @weak restart => move || {
+                if running.replace(true) {
+                    return;
+                }
+                status.set_text(&format!("Sesión local · {shell_name}"));
+                status.set_tooltip_text(None);
+                dot.style_context().add_class("live-dot");
+                restart.hide();
+                let shell = CString::new(shell.as_os_str().as_bytes()).expect("válido para el sistema");
+                let mut argv = [shell.as_ptr().cast_mut(), std::ptr::null_mut()];
+                let state = Box::new(SpawnState {
+                    status: status.downgrade(),
+                    dot: dot.downgrade(),
+                    restart: restart.downgrade(),
+                    running: running.clone(),
+                });
+                unsafe {
+                    vte_terminal_spawn_async(
+                        ptr(&widget), 0, std::ptr::null(), argv.as_mut_ptr(), std::ptr::null_mut(),
+                        glib::ffi::G_SPAWN_DEFAULT, None, std::ptr::null_mut(), None, 5_000,
+                        std::ptr::null_mut(), Some(spawned), Box::into_raw(state).cast(),
+                    );
+                }
+            }),
+        );
+        restart.connect_clicked(glib::clone!(@weak widget, @strong start => move |_| {
             start();
             widget.grab_focus();
         }));
-        restart.emit_clicked();
+        glib::idle_add_local_once(move || start());
         Self { page, widget }
     }
 }
